@@ -1,152 +1,39 @@
 import tkinter as tk
-from tkinter import ttk
-import json
-import os
 from datetime import datetime, timedelta
-import threading
-import time
 
-class TimerApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Time Tracker")
-        
-        # Setting window size
-        self.root.geometry("300x400")
-        
-        # Creating main frame
-        self.main_frame = ttk.Frame(self.root, padding="10")
-        self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Dictionary for storing timers
-        self.timers = {}
-        
-        # Loading saved timers
-        self.load_timers()
-        
-        # Creating and configuring UI elements
-        self.create_widgets()
-        
-        # Variable for tracking if timer is running
-        self.is_running = False
-        
-        # Thread for timer
-        self.timer_thread = None
+def calculate_time_difference():
+    # Set target date and time
+    target_date = datetime(2024, 2, 2, 12, 0, 0)
 
-    def create_widgets(self):
-        # Input field for new timer name
-        self.timer_name_var = tk.StringVar()
-        self.timer_entry = ttk.Entry(self.main_frame, textvariable=self.timer_name_var)
-        self.timer_entry.grid(row=0, column=0, padx=5, pady=5)
-        
-        # Button to add new timer
-        self.add_button = ttk.Button(self.main_frame, text="Add Timer", command=self.add_timer)
-        self.add_button.grid(row=0, column=1, padx=5, pady=5)
-        
-        # Frame for timer list
-        self.timers_frame = ttk.Frame(self.main_frame)
-        self.timers_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E))
+    # Get current date and time
+    current_date = datetime.now()
 
-        # Displaying existing timers
-        self.update_timer_display()
+    # Calculate the difference
+    time_difference = current_date - target_date
 
-    def add_timer(self):
-        # Getting timer name from input field
-        name = self.timer_name_var.get().strip()
-        if name and name not in self.timers:
-            # Adding new timer with zero time
-            self.timers[name] = {"time": "00:00:00", "running": False}
-            self.save_timers()
-            self.update_timer_display()
-            self.timer_name_var.set("")  # Clearing input field
+    # Get days, hours and minutes
+    days = time_difference.days
+    hours, remainder = divmod(time_difference.seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
 
-    def update_timer_display(self):
-        # Clearing current timer display
-        for widget in self.timers_frame.winfo_children():
-            widget.destroy()
-        
-        # Displaying each timer
-        for row, (name, data) in enumerate(self.timers.items()):
-            # Timer name
-            name_label = ttk.Label(self.timers_frame, text=name)
-            name_label.grid(row=row, column=0, padx=5, pady=2)
-            
-            # Timer time
-            time_var = tk.StringVar(value=data["time"])
-            time_label = ttk.Label(self.timers_frame, textvariable=time_var)
-            time_label.grid(row=row, column=1, padx=5, pady=2)
-            
-            # Start/Stop button
-            button_text = "Stop" if data["running"] else "Start"
-            start_stop_button = ttk.Button(
-                self.timers_frame,
-                text=button_text,
-                command=lambda n=name, tv=time_var: self.toggle_timer(n, tv)
-            )
-            start_stop_button.grid(row=row, column=2, padx=5, pady=2)
-            
-            # Delete button
-            delete_button = ttk.Button(
-                self.timers_frame,
-                text="Delete",
-                command=lambda n=name: self.delete_timer(n)
-            )
-            delete_button.grid(row=row, column=3, padx=5, pady=2)
+    return days, hours, minutes
 
-    def toggle_timer(self, name, time_var):
-        self.timers[name]["running"] = not self.timers[name]["running"]
-        self.save_timers()
-        self.update_timer_display()
-        
-        if self.timers[name]["running"]:
-            # Starting timer in a separate thread
-            thread = threading.Thread(target=self.run_timer, args=(name, time_var))
-            thread.daemon = True
-            thread.start()
+def update_display():
+    # Update display every second
+    days, hours, minutes = calculate_time_difference()
+    label.config(text=f"{days} days, {hours} hours, {minutes} minutes")
+    root.after(1000, update_display)
 
-    def run_timer(self, name, time_var):
-        while self.timers[name]["running"]:
-            # Converting current time to seconds
-            h, m, s = map(int, self.timers[name]["time"].split(':'))
-            total_seconds = h * 3600 + m * 60 + s
-            
-            # Adding one second
-            total_seconds += 1
-            
-            # Converting back to HH:MM:SS format
-            new_time = str(timedelta(seconds=total_seconds))
-            if '.' in new_time:
-                new_time = new_time.split('.')[0]
-            
-            # Updating timer
-            self.timers[name]["time"] = new_time
-            time_var.set(new_time)
-            self.save_timers()
-            
-            time.sleep(1)
+# Create main window
+root = tk.Tk()
+root.title("Time passed since 12:00 02.02.2024")
 
-    def delete_timer(self, name):
-        # Stopping timer if it's running
-        if self.timers[name]["running"]:
-            self.timers[name]["running"] = False
-        
-        # Removing timer
-        del self.timers[name]
-        self.save_timers()
-        self.update_timer_display()
+# Create label to display time
+label = tk.Label(root, font=('Helvetica', 24))
+label.pack(padx=20, pady=20)
 
-    def save_timers(self):
-        # Saving timers to JSON file
-        with open('timers.json', 'w') as f:
-            json.dump(self.timers, f)
+# Start display update
+update_display()
 
-    def load_timers(self):
-        # Loading timers from JSON file if it exists
-        if os.path.exists('timers.json'):
-            with open('timers.json', 'r') as f:
-                self.timers = json.load(f)
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = TimerApp(root)
-    root.mainloop()
+# Start main event loop
+root.mainloop()
